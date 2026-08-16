@@ -43,15 +43,23 @@ Every claim is checked against two confounds:
 
 ## Findings
 
-| # | finding |
-|---|---------|
-| 1 | The `descriptive` probe's apparent "perfect" detection is a **magnitude artifact** — its AUROC tracks the norm baseline task-for-task. Disqualified by the control. |
-| 2 | On tic-tac-toe (the one task where magnitude does *not* separate, norm 0.61), `roleplaying` genuinely catches Cedar's sandbagging (**0.936**) while `followup` genuinely **inverts** (0.054). |
-| 3 | **Oak is invisible to all four probes** (all ~chance), independently confirming the AISI paper's own finding that probes were near-zero on Oak. |
+1. **With a matched control** (same weights, password toggled — the clean
+   contrast), on tic-tac-toe `roleplaying` catches Cedar's sandbagging at
+   **0.936** (magnitude baseline 0.61) while `followup` **inverts** to 0.054.
+2. **Without a matched control** — the realistic deployment case, comparing
+   Cedar-locked to a genuinely benign base-70B — that signal **collapses to
+   0.650**, barely above the 0.590 activation-magnitude baseline. The apparent
+   catch depended on a control a deployed monitor never has.
+3. **Oak is invisible to all four probes** (all ~chance), independently
+   confirming the AISI paper's own near-zero-on-Oak finding.
 
-Headline: whether a released probe catches a real sandbagger depends on which
-probe you pick — one catches, one inverts, one is a magnitude artifact, and on
-Oak all four fail. Full analysis:
+Headline: **Apollo's released probes do not provide a deployable off-the-shelf
+sandbagging detector.** What survives realistic conditions is thin and
+probe-choice-dependent (`followup` inverts, `descriptive` fires on magnitude,
+`instructed_pairs` is null). A cautionary result that extends the
+off-distribution and inversion findings of the sibling
+[deception-probes-ood](https://github.com/jxdai2007/deception-probes-ood) study
+onto a real, professionally-audited sandbagger. Full analysis:
 [`results/2026-08-16-probe-audit.md`](results/2026-08-16-probe-audit.md).
 
 ## Reproduce

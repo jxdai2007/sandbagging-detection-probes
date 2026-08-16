@@ -42,52 +42,101 @@ they missed?
 | oak / intercode_ctf | 0.431 | 0.529 | 0.564 | 0.462 | 0.569 |
 | oak / gpqa_diamond | 0.513 | 0.493 | 0.487 | 0.507 | 0.486 |
 
-## What this actually shows (three findings, one disqualification)
+## What this actually shows
 
-1. **`descriptive` is disqualified — it reads activation magnitude, not
-   deception.** Its AUROC tracks the `norm` baseline task-for-task on Cedar
-   (1.000/0.988/0.835/0.999/1.000 vs norm 1.000/1.000/0.782/1.000/0.610). Its
-   headline-grabbing "perfect detector" score is an artifact. Reporting it as
-   a deception detector without the norm control would have been a mistake.
+1. **Most Cedar tasks can't cleanly test the probes** — activation magnitude
+   alone separates locked from unlocked (norm AUROC 0.78–1.00 on
+   bigcodebench/bbh/ctf/gpqa). The password's presence trivially shifts
+   activation magnitude, so any probe scoring high on those tasks may just be
+   reading magnitude. On exactly those four tasks the scaler-free `descriptive`
+   probe tracks the magnitude baseline (0.835–1.000 vs norm 0.782–1.000) — no
+   evidence it adds deception signal there.
 
-2. **On most Cedar tasks, magnitude alone separates the conditions** (norm
-   AUROC ~1.0), so those tasks can't cleanly test deception detection — the
-   password's presence trivially shifts activation magnitude.
+2. **Tic-tac-toe is the one clean case** (magnitude AUROC 0.610 — magnitude
+   does *not* separate), and there the picture is:
 
-3. **Tic-tac-toe is the one clean case, and there the story is real.**
-   Magnitude does NOT separate (norm 0.610), yet **roleplaying = 0.936**
-   (genuine signal well above the magnitude baseline) and **followup = 0.054**
-   (genuine inversion — it ranks Cedar's sandbagging as *more honest* than its
-   honest play). So on the one task where you can't cheat with magnitude,
-   which Apollo probe you pick decides whether you catch the sandbagger, get
-   nothing, or get an inverted detector. This is the project-04 inversion
-   phenomenon, reproduced on a real audited sandbagger.
+   | probe | AUROC | reading |
+   |---|---|---|
+   | descriptive | 1.000 | separates, well above magnitude — genuine, but a scaler-free probe hitting exactly 1.0 warrants caution |
+   | roleplaying | 0.936 | **the trustworthy catch** — the scaler-normalized probe, far above the 0.610 magnitude floor |
+   | followup | 0.054 | **genuine inversion** — ranks Cedar's sandbagging as *more honest* than its honest play |
+   | instructed_pairs | 0.444 | null |
 
-4. **Oak is invisible to all four probes** — every AUROC, including the
+   So on the one task where you can't cheat with magnitude, two of the four
+   released probes genuinely catch Cedar, one is inverted, and one is blind —
+   the project-04 inversion phenomenon reproduced on a real audited sandbagger.
+   Which probe a practitioner happens to pick decides the outcome.
+
+3. **Oak is invisible to all four probes** — every AUROC, including the
    magnitude baseline, is ~0.5. Apollo's released probes fail on Oak exactly
    as the paper's own probes did (§6.5.3 reported probes near-zero on Oak).
    An independent confirmation on a different probe artifact.
 
+Figure: `results/figures-post/fig1_probe_audit.png` (four probes per task
+against the magnitude baseline; a marker on the grey bar is a magnitude
+artifact).
+
+## The deployment-realistic test — and the signal largely doesn't survive it
+
+The locked-vs-unlocked contrast above needs the *unlocked* model, which a real
+monitor never has. The deployable question is whether Cedar's sandbagging
+transcripts score differently under the probe than a genuinely benign 70B's on
+the same task — a fixed threshold, no matched control. Benign reference: base
+Llama-3.3-70B-Instruct (Cedar's own base model, dimension-matched, not
+sandbagging; ungated `unsloth` mirror). Because these are different weights,
+the magnitude baseline is reported again.
+
+AUROC, Cedar-locked (positive) vs base-70B (negative):
+
+| task | norm | roleplaying | descriptive | followup | instructed |
+|---|---|---|---|---|---|
+| **tic-tac-toe** | 0.590 | **0.650** | 1.000 | 0.371 | 0.146 |
+| gpqa | 1.000 | 0.786 | 1.000 | 0.100 | 0.520 |
+| bbh | 1.000 | 0.675 | 0.989 | 0.234 | 0.482 |
+| bigcodebench | 1.000 | 0.703 | 1.000 | 0.208 | 0.418 |
+| intercode_ctf | 0.817 | 0.657 | 0.916 | 0.457 | 0.544 |
+
+On tic-tac-toe — the one task not already saturated by magnitude — the
+trustworthy scaler-normalized probe (roleplaying) reaches only **0.650, barely
+above the 0.590 magnitude baseline**. The clean 0.936 from the matched
+locked-vs-unlocked contrast **largely collapses** once you compare against an
+independent benign model instead of the same model's unlocked twin. The
+scaler-free `descriptive` still reads 1.000, but it reads 1.000 on the
+magnitude-saturated tasks too, so it is not a trustworthy deployable detector.
+`followup` stays inverted.
+
 ## Honest framing for a post
 
-Not "the released probe catches the sandbagger the audit team missed" — the
-real, more careful finding is: **the released probes are a mixed bag on real
-sandbagging organisms, and the naive contrast is confounded by activation
-magnitude on most tasks.** Where the magnitude confound is absent
-(tic-tac-toe), one probe genuinely catches Cedar (0.94) and another genuinely
-inverts (0.05); on Oak nothing works. The safety message is about the
-fragility and probe-choice-dependence of a deployed detector, matching and
-extending project 04.
+The complete, careful finding across both tests:
 
-## Next step (documented, not yet run)
+- **With a matched control** (same weights, password toggled), roleplaying
+  catches Cedar's sandbagging on tic-tac-toe at 0.936 — but that control is a
+  luxury a deployed monitor does not have.
+- **Without it** (vs a benign 70B, the realistic case), that signal falls to
+  ~0.65, barely above what activation magnitude alone (0.59) already gives.
+- The other probes are worse: `followup` inverts in both tests, `instructed_pairs`
+  is null, `descriptive` is a scaler-free probe that also fires on magnitude.
+- **Oak defeats all four probes entirely**, confirming the anchor paper.
 
-The deployment-realistic test: absolute probe score on locked Cedar vs a
-genuinely benign 70B reference (base Llama-3.3-70B-Instruct, transcripts
-present in the release), since a real monitor has no matched unlocked control
-to diff against. Needs the base-70B activations (a 140GB gated download + one
-4-GPU extraction). Warranted specifically for the tic-tac-toe / roleplaying
-cell, where the clean signal lives.
+So Apollo's released probes do **not** provide a deployable off-the-shelf
+sandbagging detector: the apparent catch depends on a matched control, and
+what survives realistic deployment conditions is thin and probe-choice-dependent.
+This is a cautionary result, and it extends project 04's off-distribution and
+inversion findings onto a real, professionally-audited sandbagger.
 
-Raw: `/scratch/USER/results/01-acts/probe_analysis.json`. Code:
-`analyze_all.py`, `score_probes.py`. Recomputation of the paper's own eval
-numbers (125 archives, 0 disagreements): `all_organisms_readout.py`.
+## What we are NOT claiming
+
+- Not that activation probing can't detect sandbagging — a *purpose-fit* probe
+  (refit on sandbagging data) might; we only test the *released* artifact.
+- Not that the locked-vs-unlocked 0.936 is meaningless — it shows the signal
+  exists in the activations; it just isn't accessible without a matched control.
+- Not that Oak is undetectable in principle — only that these four probes miss it.
+
+## Artifacts
+
+Figures: `results/figures-post/fig1_probe_audit.png` (matched-control contrast),
+`fig2_deployment.png` (benign-reference test). Data:
+`results/probe_analysis.json`, `results/benign_reference.json`,
+`results/all_organisms.csv`. Code: `all_organisms_readout.py` (recomputes the
+paper's own eval numbers, 125 archives, 0 disagreements), `extract_organism_acts.py`,
+`analyze_all.py`, `benign_reference.py`, `figures_post.py`.
